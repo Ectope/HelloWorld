@@ -1,0 +1,85 @@
+{
+  "last_updated": "2026-01-24T05:42:27.485531",
+  "total_infected": 14,
+  "total_quarantined": 290,
+  "total_deaths": 2,
+  "total_recovered": 0,
+  "regions": {
+    "West Bengal": {
+      "infected": 5,
+      "quarantined": 190,
+      "deaths": 0,
+      "recovered": 0,
+      "status": "critical",
+      "districts": [
+        "North 24 Parganas"
+      ],
+      "last_updated": "2026-01-23"
+    },
+    "Kerala": {
+      "infected": 4,
+      "quarantined": 0,
+      "deaths": 2,
+      "recovered": 0,
+      "status": "contained",
+      "districts": [],
+      "last_updated": "2025-07-12"
+    },
+    "Maharashtra": {
+      "infected": 3,
+      "quarantined": 60,
+      "deaths": 0,
+      "recovered": 0,
+      "status": "investigating",
+      "districts": [],
+      "last_updated": "2026-01-24T05:42:27.484076"
+    },
+    "Karnataka": {
+      "infected": 2,
+      "quarantined": 40,
+      "deaths": 0,
+      "recovered": 0,
+      "status": "investigating",
+      "districts": [],
+      "last_updated": "2026-01-24T05:42:27.485515"
+    }
+  },
+  "timeline": [
+    {
+      "date": "2026-01-11",
+      "event": "First cases detected in West Bengal",
+      "region": "West Bengal",
+      "cases": 2
+    },
+    {
+      "date": "2026-01-23",
+      "event": "Total 5 cases confirmed in West Bengal",
+      "region": "West Bengal",
+      "cases": 5
+    },
+    {
+      "date": "2026-01-24T05:42:27.484809",
+      "event": "New outbreak detected in Maharashtra",
+      "region": "Maharashtra",
+      "cases": 3
+    },
+    {
+      "date": "2026-01-24T05:42:27.486079",
+      "event": "New outbreak detected in Karnataka",
+      "region": "Karnataka",
+      "cases": 2
+    }
+  ],
+  "sources": [
+    {
+      "name": "WHO",
+      "url": "https://www.who.int/emergencies/disease-outbreak-news/item/2025-DON577",
+      "last_checked": "2026-01-24T05:41:58.744899"
+    },
+    {
+      "name": "Outbreak News Today",
+      "url": "https://outbreaknewstoday.substack.com",
+      "last_checked": "2026-01-24T05:41:58.744901"
+    }
+  ]
+}

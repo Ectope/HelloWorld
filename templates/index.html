@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nipah Outbreak Dashboard - India</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🦠 Nipah Virus Outbreak Dashboard</h1>
+            <p class="subtitle">Real-time monitoring of Nipah virus cases in India</p>
+            <div class="last-updated">
+                Last Updated: <span id="lastUpdated">Loading...</span>
+                <button id="refreshBtn" class="btn-refresh">Refresh Data</button>
+            </div>
+        </header>
+
+        <div class="alert-banner" id="alertBanner" style="display: none;">
+            <span id="alertMessage"></span>
+        </div>
+
+        <section class="stats-overview">
+            <div class="stat-card">
+                <div class="stat-icon">😷</div>
+                <div class="stat-value" id="totalInfected">-</div>
+                <div class="stat-label">Total Infected</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🏥</div>
+                <div class="stat-value" id="totalQuarantined">-</div>
+                <div class="stat-label">Total Quarantined</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">💔</div>
+                <div class="stat-value" id="totalDeaths">-</div>
+                <div class="stat-label">Total Deaths</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">✅</div>
+                <div class="stat-value" id="totalRecovered">-</div>
+                <div class="stat-label">Total Recovered</div>
+            </div>
+        </section>
+
+        <section class="charts-section">
+            <div class="chart-container">
+                <h2>Regional Distribution</h2>
+                <canvas id="regionalChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <h2>Cases by Category</h2>
+                <canvas id="categoryChart"></canvas>
+            </div>
+        </section>
+
+        <section class="regional-details">
+            <h2>Regional Breakdown</h2>
+            <div id="regionList" class="region-list">
+                <p class="loading">Loading regional data...</p>
+            </div>
+        </section>
+
+        <section class="timeline-section">
+            <h2>Outbreak Timeline</h2>
+            <div id="timeline" class="timeline">
+                <p class="loading">Loading timeline...</p>
+            </div>
+        </section>
+
+        <section class="sources-section">
+            <h2>Data Sources</h2>
+            <div id="sources" class="sources-list">
+                <p class="loading">Loading sources...</p>
+            </div>
+        </section>
+
+        <footer>
+            <p>⚠️ This dashboard tracks the Nipah virus outbreak in India using data from reliable sources including WHO, Government health departments, and verified news outlets.</p>
+            <p class="disclaimer">For official information, please consult your local health authorities and the World Health Organization.</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>
