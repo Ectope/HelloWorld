@@ -67,6 +67,34 @@ header h1 {
     transform: translateY(0);
 }
 
+.btn-update {
+    background: #51cf66;
+    color: white;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-weight: bold;
+    margin-left: 10px;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.btn-update:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    background: #40c057;
+}
+
+.btn-update:active {
+    transform: translateY(0);
+}
+
+.btn-update:disabled {
+    background: #adb5bd;
+    cursor: not-allowed;
+    transform: none;
+}
+
 .alert-banner {
     background: #ff6b6b;
     color: white;

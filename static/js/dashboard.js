@@ -17,6 +17,13 @@ document.addEventListener('DOMContentLoaded', function() {
         refreshData();
     });
 
+    // Set up update data button
+    document.getElementById('updateDataBtn').addEventListener('click', function() {
+        this.disabled = true;
+        this.textContent = 'Updating...';
+        updateData();
+    });
+
     // Auto-refresh every 5 minutes
     autoRefreshInterval = setInterval(loadDashboardData, 5 * 60 * 1000);
 });
@@ -470,6 +477,30 @@ async function refreshData() {
         const btn = document.getElementById('refreshBtn');
         btn.disabled = false;
         btn.textContent = 'Refresh Data';
+    }
+}
+
+// Update data from sources
+async function updateData() {
+    try {
+        const response = await fetch('/api/refresh', {
+            method: 'POST'
+        });
+        const result = await response.json();
+
+        if (result.success) {
+            showSuccess('Data sources checked and updated');
+            await loadDashboardData();
+        } else {
+            showError('Update failed: ' + result.error);
+        }
+    } catch (error) {
+        console.error('Error updating data:', error);
+        showError('Failed to update data');
+    } finally {
+        const btn = document.getElementById('updateDataBtn');
+        btn.disabled = false;
+        btn.textContent = 'Update Data';
     }
 }
 
