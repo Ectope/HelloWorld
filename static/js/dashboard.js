@@ -2,6 +2,7 @@
 
 let regionalChart = null;
 let categoryChart = null;
+let cumulativeChart = null;
 let autoRefreshInterval = null;
 
 // Initialize dashboard when page loads
@@ -23,13 +24,22 @@ document.addEventListener('DOMContentLoaded', function() {
 // Load all dashboard data
 async function loadDashboardData() {
     try {
-        const response = await fetch('/api/data');
-        const result = await response.json();
+        const [dataResponse, dailyStatsResponse] = await Promise.all([
+            fetch('/api/data'),
+            fetch('/api/daily-statistics')
+        ]);
 
-        if (result.success) {
-            updateDashboard(result.data);
+        const dataResult = await dataResponse.json();
+        const dailyStatsResult = await dailyStatsResponse.json();
+
+        if (dataResult.success) {
+            updateDashboard(dataResult.data);
+
+            if (dailyStatsResult.success) {
+                updateCumulativeChart(dailyStatsResult.daily_statistics);
+            }
         } else {
-            showError('Failed to load data: ' + result.error);
+            showError('Failed to load data: ' + dataResult.error);
         }
     } catch (error) {
         console.error('Error loading dashboard data:', error);
@@ -165,6 +175,126 @@ function updateCategoryChart(data) {
                 legend: {
                     display: true,
                     position: 'bottom'
+                }
+            }
+        }
+    });
+}
+
+// Cumulative curve chart
+function updateCumulativeChart(dailyStats) {
+    const ctx = document.getElementById('cumulativeChart').getContext('2d');
+
+    if (cumulativeChart) {
+        cumulativeChart.destroy();
+    }
+
+    if (!dailyStats || dailyStats.length === 0) {
+        return;
+    }
+
+    // Sort by date
+    const sortedStats = [...dailyStats].sort((a, b) =>
+        new Date(a.date) - new Date(b.date)
+    );
+
+    const labels = sortedStats.map(stat => {
+        const date = new Date(stat.date);
+        return date.toLocaleDateString('en-IN', {
+            month: 'short',
+            day: 'numeric'
+        });
+    });
+
+    const infected = sortedStats.map(stat => stat.infected);
+    const quarantined = sortedStats.map(stat => stat.quarantined);
+    const deaths = sortedStats.map(stat => stat.deaths);
+    const recovered = sortedStats.map(stat => stat.recovered);
+
+    cumulativeChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Infected',
+                    data: infected,
+                    borderColor: 'rgba(255, 107, 107, 1)',
+                    backgroundColor: 'rgba(255, 107, 107, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 4,
+                    pointHoverRadius: 6
+                },
+                {
+                    label: 'Quarantined',
+                    data: quarantined,
+                    borderColor: 'rgba(255, 165, 2, 1)',
+                    backgroundColor: 'rgba(255, 165, 2, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 4,
+                    pointHoverRadius: 6
+                },
+                {
+                    label: 'Deaths',
+                    data: deaths,
+                    borderColor: 'rgba(102, 126, 234, 1)',
+                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 4,
+                    pointHoverRadius: 6
+                },
+                {
+                    label: 'Recovered',
+                    data: recovered,
+                    borderColor: 'rgba(78, 205, 196, 1)',
+                    backgroundColor: 'rgba(78, 205, 196, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 4,
+                    pointHoverRadius: 6
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    },
+                    title: {
+                        display: true,
+                        text: 'Number of Cases'
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Date'
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top'
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
                 }
             }
         }
@@ -381,5 +511,8 @@ window.addEventListener('beforeunload', function() {
     }
     if (categoryChart) {
         categoryChart.destroy();
+    }
+    if (cumulativeChart) {
+        cumulativeChart.destroy();
     }
 });

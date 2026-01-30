@@ -19,7 +19,8 @@ class OutbreakData:
             'total_recovered': 0,
             'regions': {},
             'timeline': [],
-            'sources': []
+            'sources': [],
+            'daily_statistics': []  # New field for cumulative tracking
         }
         self.load_data()
 
@@ -89,6 +90,22 @@ class OutbreakData:
                     'url': 'https://outbreaknewstoday.substack.com',
                     'last_checked': datetime.now().isoformat()
                 }
+            ],
+            'daily_statistics': [
+                {
+                    'date': '2026-01-11',
+                    'infected': 2,
+                    'quarantined': 40,
+                    'deaths': 0,
+                    'recovered': 0
+                },
+                {
+                    'date': '2026-01-23',
+                    'infected': 9,
+                    'quarantined': 190,
+                    'deaths': 2,
+                    'recovered': 0
+                }
             ]
         }
         self.save_data()
@@ -149,6 +166,43 @@ class OutbreakData:
             r.get('recovered', 0) for r in self.data['regions'].values()
         )
 
+        # Record daily snapshot
+        self.record_daily_snapshot()
+
+    def record_daily_snapshot(self):
+        """Record a daily snapshot of current statistics"""
+        # Ensure daily_statistics exists (backward compatibility)
+        if 'daily_statistics' not in self.data:
+            self.data['daily_statistics'] = []
+
+        today = datetime.now().strftime('%Y-%m-%d')
+
+        # Check if we already have a snapshot for today
+        existing_index = None
+        for i, snapshot in enumerate(self.data['daily_statistics']):
+            if snapshot['date'].startswith(today):
+                existing_index = i
+                break
+
+        snapshot = {
+            'date': datetime.now().isoformat(),
+            'infected': self.data['total_infected'],
+            'quarantined': self.data['total_quarantined'],
+            'deaths': self.data['total_deaths'],
+            'recovered': self.data['total_recovered']
+        }
+
+        if existing_index is not None:
+            # Update today's snapshot
+            self.data['daily_statistics'][existing_index] = snapshot
+        else:
+            # Add new snapshot
+            self.data['daily_statistics'].append(snapshot)
+
+        # Keep only last 90 days
+        if len(self.data['daily_statistics']) > 90:
+            self.data['daily_statistics'] = self.data['daily_statistics'][-90:]
+
     def get_all_data(self) -> Dict:
         """Get all outbreak data"""
         return self.data
@@ -167,3 +221,11 @@ class OutbreakData:
             'active_regions': len(self.data['regions']),
             'last_updated': self.data['last_updated']
         }
+
+    def get_daily_statistics(self) -> List[Dict]:
+        """Get daily statistics for cumulative curve chart"""
+        # Ensure daily_statistics exists (backward compatibility)
+        if 'daily_statistics' not in self.data:
+            return []
+
+        return self.data.get('daily_statistics', [])

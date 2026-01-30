@@ -185,6 +185,22 @@ def get_sources():
         }), 500
 
 
+@app.route('/api/daily-statistics')
+def get_daily_statistics():
+    """API endpoint to get daily cumulative statistics"""
+    try:
+        daily_stats = outbreak_data.get_daily_statistics()
+        return jsonify({
+            'success': True,
+            'daily_statistics': daily_stats
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @app.route('/health')
 def health_check():
     """Health check endpoint"""
