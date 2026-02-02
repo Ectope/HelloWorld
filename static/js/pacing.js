@@ -1,6 +1,7 @@
 /**
  * Cardiac Pacing Simulator
  * Educational tool for ICU nursing and junior doctor training
+ * Medtronic-style interface
  */
 
 class CardiacPacingSimulator {
@@ -23,10 +24,10 @@ class CardiacPacingSimulator {
         // Pacemaker settings
         this.settings = {
             power: true,
-            mode: 'VVI',
-            rate: 70,
-            aOutput: 5.0,
-            vOutput: 5.0,
+            mode: 'DDD',
+            rate: 80,
+            aOutput: 10.0,
+            vOutput: 10.0,
             aSensitivity: 2.0,
             vSensitivity: 2.0,
             avDelay: 150
@@ -67,9 +68,10 @@ class CardiacPacingSimulator {
 
         // Indicator flash timers
         this.indicatorTimers = {
-            atrial: null,
-            vent: null,
-            sense: null
+            aPace: null,
+            vPace: null,
+            aSense: null,
+            vSense: null
         };
 
         this.init();
@@ -79,7 +81,7 @@ class CardiacPacingSimulator {
         this.setupCanvas();
         this.bindEvents();
         this.initializeBuffers();
-        this.updatePowerIndicator();
+        this.updateAllDisplays();
         this.startSimulation();
     }
 
@@ -111,39 +113,69 @@ class CardiacPacingSimulator {
     }
 
     bindEvents() {
-        // Power toggle
-        document.getElementById('powerToggle').addEventListener('change', (e) => {
-            this.settings.power = e.target.checked;
-            this.updatePowerIndicator();
+        // Power button
+        const powerBtn = document.getElementById('powerBtn');
+        powerBtn.addEventListener('click', () => {
+            this.settings.power = !this.settings.power;
+            powerBtn.classList.toggle('off', !this.settings.power);
+            if (!this.settings.power) {
+                this.resetCardiacState();
+            }
         });
 
         // Mode selector
         document.getElementById('pacingMode').addEventListener('change', (e) => {
             this.settings.mode = e.target.value;
+            this.updateModeDisplay();
+            this.updateWarningBanner();
         });
 
         // Rate control
         const rateSlider = document.getElementById('rateSlider');
         rateSlider.addEventListener('input', (e) => {
             this.settings.rate = parseInt(e.target.value);
-            document.getElementById('rateValue').textContent = this.settings.rate;
-            this.updateDialRotation('rateDial', e.target.value, 30, 180);
+            document.getElementById('rateDisplay').textContent = this.settings.rate;
+            this.updateGaugeArc('rateArc', e.target.value, 30, 200);
+            this.updateKnobRotation('rateKnob', e.target.value, 30, 200);
         });
 
-        // Output controls
-        this.bindDialControl('aOutputSlider', 'aOutputValue', 'aOutputDial', 'aOutput', 0.1, 25, 1);
-        this.bindDialControl('vOutputSlider', 'vOutputValue', 'vOutputDial', 'vOutput', 0.1, 25, 1);
+        // A Output control
+        const aOutputSlider = document.getElementById('aOutputSlider');
+        aOutputSlider.addEventListener('input', (e) => {
+            this.settings.aOutput = parseFloat(e.target.value);
+            document.getElementById('aOutputDisplay').textContent = this.settings.aOutput.toFixed(1);
+            this.updateGaugeArc('aOutputArc', e.target.value, 0, 20);
+            this.updateKnobRotation('aOutputKnob', e.target.value, 0, 20);
+        });
 
-        // Sensitivity controls
-        this.bindDialControl('aSensSlider', 'aSensValue', 'aSensDial', 'aSensitivity', 0.5, 20, 1);
-        this.bindDialControl('vSensSlider', 'vSensValue', 'vSensDial', 'vSensitivity', 0.5, 20, 1);
+        // V Output control
+        const vOutputSlider = document.getElementById('vOutputSlider');
+        vOutputSlider.addEventListener('input', (e) => {
+            this.settings.vOutput = parseFloat(e.target.value);
+            document.getElementById('vOutputDisplay').textContent = this.settings.vOutput.toFixed(1);
+            this.updateGaugeArc('vOutputArc', e.target.value, 0, 25);
+            this.updateKnobRotation('vOutputKnob', e.target.value, 0, 25);
+        });
+
+        // A Sensitivity control
+        const aSensSlider = document.getElementById('aSensSlider');
+        aSensSlider.addEventListener('input', (e) => {
+            this.settings.aSensitivity = parseFloat(e.target.value);
+            document.getElementById('aSensDisplay').textContent = this.settings.aSensitivity.toFixed(1);
+        });
+
+        // V Sensitivity control
+        const vSensSlider = document.getElementById('vSensSlider');
+        vSensSlider.addEventListener('input', (e) => {
+            this.settings.vSensitivity = parseFloat(e.target.value);
+            document.getElementById('vSensDisplay').textContent = this.settings.vSensitivity.toFixed(1);
+        });
 
         // AV Delay
         const avDelaySlider = document.getElementById('avDelaySlider');
         avDelaySlider.addEventListener('input', (e) => {
             this.settings.avDelay = parseInt(e.target.value);
-            document.getElementById('avDelayValue').textContent = this.settings.avDelay;
-            this.updateDialRotation('avDelayDial', e.target.value, 50, 300);
+            document.getElementById('avDelayDisplay').textContent = this.settings.avDelay;
         });
 
         // Scenario controls
@@ -203,41 +235,80 @@ class CardiacPacingSimulator {
             });
         });
 
-        // Initialize dial positions
-        this.updateDialRotation('rateDial', 70, 30, 180);
-        this.updateDialRotation('aOutputDial', 5, 0.1, 25);
-        this.updateDialRotation('vOutputDial', 5, 0.1, 25);
-        this.updateDialRotation('aSensDial', 2, 0.5, 20);
-        this.updateDialRotation('vSensDial', 2, 0.5, 20);
-        this.updateDialRotation('avDelayDial', 150, 50, 300);
-    }
+        // Navigation buttons (for future use)
+        document.getElementById('upBtn').addEventListener('click', () => {
+            // Could be used to adjust selected parameter
+        });
 
-    bindDialControl(sliderId, valueId, dialId, settingKey, min, max, decimals) {
-        const slider = document.getElementById(sliderId);
-        slider.addEventListener('input', (e) => {
-            const value = parseFloat(e.target.value);
-            this.settings[settingKey] = value;
-            document.getElementById(valueId).textContent = value.toFixed(decimals);
-            this.updateDialRotation(dialId, value, min, max);
+        document.getElementById('downBtn').addEventListener('click', () => {
+            // Could be used to adjust selected parameter
         });
     }
 
-    updateDialRotation(dialId, value, min, max) {
-        const dial = document.getElementById(dialId);
-        if (dial) {
-            const knob = dial.querySelector('.dial-knob');
+    updateAllDisplays() {
+        // Update rate display and gauge
+        document.getElementById('rateDisplay').textContent = this.settings.rate;
+        this.updateGaugeArc('rateArc', this.settings.rate, 30, 200);
+        this.updateKnobRotation('rateKnob', this.settings.rate, 30, 200);
+
+        // Update A output
+        document.getElementById('aOutputDisplay').textContent = this.settings.aOutput.toFixed(1);
+        this.updateGaugeArc('aOutputArc', this.settings.aOutput, 0, 20);
+        this.updateKnobRotation('aOutputKnob', this.settings.aOutput, 0, 20);
+
+        // Update V output
+        document.getElementById('vOutputDisplay').textContent = this.settings.vOutput.toFixed(1);
+        this.updateGaugeArc('vOutputArc', this.settings.vOutput, 0, 25);
+        this.updateKnobRotation('vOutputKnob', this.settings.vOutput, 0, 25);
+
+        // Update sensitivity
+        document.getElementById('aSensDisplay').textContent = this.settings.aSensitivity.toFixed(1);
+        document.getElementById('vSensDisplay').textContent = this.settings.vSensitivity.toFixed(1);
+
+        // Update AV delay
+        document.getElementById('avDelayDisplay').textContent = this.settings.avDelay;
+
+        // Update mode display
+        this.updateModeDisplay();
+        this.updateWarningBanner();
+    }
+
+    updateGaugeArc(arcId, value, min, max) {
+        const arc = document.getElementById(arcId);
+        if (arc) {
             const percentage = (value - min) / (max - min);
-            const rotation = -135 + (percentage * 270); // -135 to 135 degrees
-            knob.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
+            const arcLength = 79; // Total arc length
+            const dashLength = percentage * arcLength;
+            arc.setAttribute('stroke-dasharray', `${dashLength} ${arcLength}`);
         }
     }
 
-    updatePowerIndicator() {
-        const indicator = document.getElementById('powerIndicator');
-        if (this.settings.power) {
-            indicator.classList.add('on');
+    updateKnobRotation(knobId, value, min, max) {
+        const knob = document.getElementById(knobId);
+        if (knob) {
+            const percentage = (value - min) / (max - min);
+            const rotation = -135 + (percentage * 270); // -135 to 135 degrees
+            knob.style.transform = `rotate(${rotation}deg)`;
+        }
+    }
+
+    updateModeDisplay() {
+        const modeDisplay = document.getElementById('modeDisplay');
+        if (modeDisplay) {
+            modeDisplay.textContent = this.settings.mode;
+        }
+    }
+
+    updateWarningBanner() {
+        const banner = document.getElementById('warningBanner');
+        const warningMode = document.getElementById('warningMode');
+        const asyncModes = ['DOO', 'VOO', 'AOO'];
+
+        if (asyncModes.includes(this.settings.mode)) {
+            banner.classList.add('visible');
+            warningMode.textContent = this.settings.mode;
         } else {
-            indicator.classList.remove('on');
+            banner.classList.remove('visible');
         }
     }
 
@@ -262,10 +333,10 @@ class CardiacPacingSimulator {
         // Reset pacemaker settings
         this.settings = {
             power: true,
-            mode: 'VVI',
-            rate: 70,
-            aOutput: 5.0,
-            vOutput: 5.0,
+            mode: 'DDD',
+            rate: 80,
+            aOutput: 10.0,
+            vOutput: 10.0,
             aSensitivity: 2.0,
             vSensitivity: 2.0,
             avDelay: 150
@@ -284,21 +355,15 @@ class CardiacPacingSimulator {
             leadDisplacement: false
         };
 
-        // Update UI
-        document.getElementById('powerToggle').checked = true;
-        document.getElementById('pacingMode').value = 'VVI';
-        document.getElementById('rateSlider').value = 70;
-        document.getElementById('rateValue').textContent = '70';
-        document.getElementById('aOutputSlider').value = 5;
-        document.getElementById('aOutputValue').textContent = '5.0';
-        document.getElementById('vOutputSlider').value = 5;
-        document.getElementById('vOutputValue').textContent = '5.0';
+        // Update UI elements
+        document.getElementById('powerBtn').classList.remove('off');
+        document.getElementById('pacingMode').value = 'DDD';
+        document.getElementById('rateSlider').value = 80;
+        document.getElementById('aOutputSlider').value = 10;
+        document.getElementById('vOutputSlider').value = 10;
         document.getElementById('aSensSlider').value = 2;
-        document.getElementById('aSensValue').textContent = '2.0';
         document.getElementById('vSensSlider').value = 2;
-        document.getElementById('vSensValue').textContent = '2.0';
         document.getElementById('avDelaySlider').value = 150;
-        document.getElementById('avDelayValue').textContent = '150';
         document.getElementById('rhythmSelect').value = 'complete_hb';
         document.getElementById('intrinsicRateSlider').value = 35;
         document.getElementById('intrinsicRateValue').textContent = '35';
@@ -311,15 +376,7 @@ class CardiacPacingSimulator {
         document.getElementById('sysBP').value = 120;
         document.getElementById('diaBP').value = 80;
 
-        // Update dial positions
-        this.updateDialRotation('rateDial', 70, 30, 180);
-        this.updateDialRotation('aOutputDial', 5, 0.1, 25);
-        this.updateDialRotation('vOutputDial', 5, 0.1, 25);
-        this.updateDialRotation('aSensDial', 2, 0.5, 20);
-        this.updateDialRotation('vSensDial', 2, 0.5, 20);
-        this.updateDialRotation('avDelayDial', 150, 50, 300);
-
-        this.updatePowerIndicator();
+        this.updateAllDisplays();
         this.resetCardiacState();
     }
 
@@ -373,7 +430,8 @@ class CardiacPacingSimulator {
         // Check for oversensing (random inhibition)
         if (this.patient.oversensing && this.settings.power) {
             if (Math.random() < 0.001) { // Random noise detection
-                this.flashIndicator('sense');
+                this.flashIndicator('aSense');
+                this.flashIndicator('vSense');
                 // Inhibit pacing briefly
                 this.cardiacState.lastVentBeat = time;
                 this.cardiacState.lastAtrialBeat = time;
@@ -619,7 +677,7 @@ class CardiacPacingSimulator {
                 if (timeSinceLastPacedVent >= pacingInterval) {
                     value += this.generatePacingSpike('V');
                     this.cardiacState.lastPacedVent = time;
-                    this.flashIndicator('vent');
+                    this.flashIndicator('vPace');
                     if (willCapture) {
                         value += this.generatePacedQRS(0);
                     }
@@ -633,7 +691,7 @@ class CardiacPacingSimulator {
                 if (timeSinceLastPacedAtrial >= pacingInterval) {
                     value += this.generatePacingSpike('A');
                     this.cardiacState.lastPacedAtrial = time;
-                    this.flashIndicator('atrial');
+                    this.flashIndicator('aPace');
                 }
                 break;
 
@@ -642,13 +700,13 @@ class CardiacPacingSimulator {
                 if (timeSinceLastPacedAtrial >= pacingInterval) {
                     value += this.generatePacingSpike('A');
                     this.cardiacState.lastPacedAtrial = time;
-                    this.flashIndicator('atrial');
+                    this.flashIndicator('aPace');
                 }
                 if (timeSinceLastPacedAtrial >= this.settings.avDelay &&
                     timeSinceLastPacedAtrial < this.settings.avDelay + 10) {
                     value += this.generatePacingSpike('V');
                     this.cardiacState.lastPacedVent = time;
-                    this.flashIndicator('vent');
+                    this.flashIndicator('vPace');
                     if (willCapture) {
                         this.cardiacState.lastVentBeat = time;
                     }
@@ -662,13 +720,13 @@ class CardiacPacingSimulator {
                 // Ventricular demand pacing
                 if (sensedVent) {
                     this.cardiacState.lastVentBeat = time;
-                    this.flashIndicator('sense');
+                    this.flashIndicator('vSense');
                 }
 
                 if (timeSinceLastVent >= pacingInterval && timeSinceLastPacedVent >= pacingInterval) {
                     value += this.generatePacingSpike('V');
                     this.cardiacState.lastPacedVent = time;
-                    this.flashIndicator('vent');
+                    this.flashIndicator('vPace');
                     if (willCapture) {
                         this.cardiacState.lastVentBeat = time;
                     }
@@ -682,13 +740,13 @@ class CardiacPacingSimulator {
                 // Atrial demand pacing
                 if (sensedAtrial) {
                     this.cardiacState.lastAtrialBeat = time;
-                    this.flashIndicator('sense');
+                    this.flashIndicator('aSense');
                 }
 
                 if (timeSinceLastAtrial >= pacingInterval && timeSinceLastPacedAtrial >= pacingInterval) {
                     value += this.generatePacingSpike('A');
                     this.cardiacState.lastPacedAtrial = time;
-                    this.flashIndicator('atrial');
+                    this.flashIndicator('aPace');
                     this.cardiacState.lastAtrialBeat = time;
                 }
                 break;
@@ -698,20 +756,20 @@ class CardiacPacingSimulator {
                 // Atrial sensing/pacing
                 if (sensedAtrial) {
                     this.cardiacState.lastAtrialBeat = time;
-                    this.flashIndicator('sense');
+                    this.flashIndicator('aSense');
                 }
 
                 if (timeSinceLastAtrial >= pacingInterval && timeSinceLastPacedAtrial >= pacingInterval) {
                     value += this.generatePacingSpike('A');
                     this.cardiacState.lastPacedAtrial = time;
                     this.cardiacState.lastAtrialBeat = time;
-                    this.flashIndicator('atrial');
+                    this.flashIndicator('aPace');
                 }
 
                 // Ventricular sensing/pacing
                 if (sensedVent) {
                     this.cardiacState.lastVentBeat = time;
-                    this.flashIndicator('sense');
+                    this.flashIndicator('vSense');
                 }
 
                 const timeSinceAtrial = Math.min(timeSinceLastAtrial, timeSinceLastPacedAtrial);
@@ -720,7 +778,7 @@ class CardiacPacingSimulator {
                     timeSinceLastVent >= this.settings.avDelay) {
                     value += this.generatePacingSpike('V');
                     this.cardiacState.lastPacedVent = time;
-                    this.flashIndicator('vent');
+                    this.flashIndicator('vPace');
                     if (willCapture) {
                         this.cardiacState.lastVentBeat = time;
                     }
@@ -844,9 +902,10 @@ class CardiacPacingSimulator {
 
     flashIndicator(type) {
         const indicators = {
-            atrial: 'atrialPaceIndicator',
-            vent: 'ventPaceIndicator',
-            sense: 'senseIndicator'
+            aPace: 'aPaceLed',
+            vPace: 'vPaceLed',
+            aSense: 'aSenseLed',
+            vSense: 'vSenseLed'
         };
 
         const element = document.getElementById(indicators[type]);
