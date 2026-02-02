@@ -38,6 +38,12 @@ def index():
     return render_template('index.html')
 
 
+@app.route('/pacing')
+def pacing_simulator():
+    """Render the cardiac pacing simulator"""
+    return render_template('pacing_simulator.html')
+
+
 @app.route('/api/data')
 def get_data():
     """API endpoint to get all outbreak data"""

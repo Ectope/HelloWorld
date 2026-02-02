@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cardiac Pacing Simulator - ICU Training</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/pacing.css') }}">
+</head>
+<body>
+    <div class="simulator-container">
+        <header class="sim-header">
+            <h1>Cardiac Pacing Simulator</h1>
+            <p class="subtitle">ICU Training Tool - Temporary Transvenous Pacing</p>
+        </header>
+
+        <div class="main-content">
+            <!-- Patient Monitor Section -->
+            <div class="monitor-section">
+                <div class="patient-monitor">
+                    <div class="monitor-header">
+                        <span class="monitor-brand">Patient Monitor</span>
+                        <div class="monitor-indicators">
+                            <span class="indicator power-on"></span>
+                            <span class="indicator-label">PWR</span>
+                        </div>
+                    </div>
+
+                    <div class="monitor-screen">
+                        <!-- ECG Display -->
+                        <div class="waveform-container ecg-container">
+                            <div class="waveform-label">
+                                <span class="label-text">II</span>
+                                <span class="label-value" id="hrDisplay">HR: -- bpm</span>
+                            </div>
+                            <canvas id="ecgCanvas" class="waveform-canvas"></canvas>
+                        </div>
+
+                        <!-- Arterial Line Display -->
+                        <div class="waveform-container art-container">
+                            <div class="waveform-label">
+                                <span class="label-text">ART</span>
+                                <span class="label-value" id="bpDisplay">--/-- (--)</span>
+                            </div>
+                            <canvas id="artCanvas" class="waveform-canvas"></canvas>
+                        </div>
+
+                        <!-- Vital Signs Panel -->
+                        <div class="vitals-panel">
+                            <div class="vital-box hr-box">
+                                <span class="vital-label">HR</span>
+                                <span class="vital-value" id="hrValue">--</span>
+                                <span class="vital-unit">bpm</span>
+                            </div>
+                            <div class="vital-box bp-box">
+                                <span class="vital-label">ABP</span>
+                                <span class="vital-value" id="bpValue">--/--</span>
+                                <span class="vital-unit">mmHg</span>
+                            </div>
+                            <div class="vital-box map-box">
+                                <span class="vital-label">MAP</span>
+                                <span class="vital-value" id="mapValue">--</span>
+                                <span class="vital-unit">mmHg</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Pacing Indicators -->
+                    <div class="pacing-indicators">
+                        <div class="pace-indicator" id="atrialPaceIndicator">
+                            <span class="pace-light"></span>
+                            <span>A PACE</span>
+                        </div>
+                        <div class="pace-indicator" id="ventPaceIndicator">
+                            <span class="pace-light"></span>
+                            <span>V PACE</span>
+                        </div>
+                        <div class="pace-indicator" id="senseIndicator">
+                            <span class="pace-light sense-light"></span>
+                            <span>SENSE</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pacing Box Section -->
+            <div class="pacing-box-section">
+                <div class="pacing-box">
+                    <div class="pacing-box-header">
+                        <div class="brand-logo">MEDTRONIC</div>
+                        <div class="model-number">Model 5392</div>
+                        <div class="device-type">Temporary Pacemaker</div>
+                    </div>
+
+                    <div class="pacing-box-body">
+                        <!-- Power Control -->
+                        <div class="control-row power-row">
+                            <div class="power-switch-container">
+                                <label class="switch-label">POWER</label>
+                                <div class="toggle-switch" id="powerSwitch">
+                                    <input type="checkbox" id="powerToggle" checked>
+                                    <span class="slider"></span>
+                                </div>
+                                <div class="power-indicator" id="powerIndicator"></div>
+                            </div>
+                        </div>
+
+                        <!-- Mode Selector -->
+                        <div class="control-row mode-row">
+                            <label class="control-label">PACING MODE</label>
+                            <div class="mode-selector">
+                                <select id="pacingMode" class="mode-select">
+                                    <option value="VVI">VVI - Ventricular Demand</option>
+                                    <option value="AAI">AAI - Atrial Demand</option>
+                                    <option value="DDD">DDD - Dual Chamber</option>
+                                    <option value="VOO">VOO - Ventricular Async</option>
+                                    <option value="AOO">AOO - Atrial Async</option>
+                                    <option value="DOO">DOO - Dual Async</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Rate Control -->
+                        <div class="control-row">
+                            <div class="dial-container">
+                                <label class="dial-label">RATE (ppm)</label>
+                                <div class="dial-wrapper">
+                                    <div class="dial" id="rateDial">
+                                        <div class="dial-knob">
+                                            <div class="dial-indicator"></div>
+                                        </div>
+                                        <div class="dial-markings rate-markings"></div>
+                                    </div>
+                                    <input type="range" id="rateSlider" min="30" max="180" value="70" class="dial-slider">
+                                </div>
+                                <div class="dial-value-display">
+                                    <span id="rateValue">70</span>
+                                    <span class="unit">ppm</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Output Controls -->
+                        <div class="control-row dual-control">
+                            <div class="dial-container">
+                                <label class="dial-label">A OUTPUT (mA)</label>
+                                <div class="dial-wrapper small">
+                                    <div class="dial small" id="aOutputDial">
+                                        <div class="dial-knob">
+                                            <div class="dial-indicator"></div>
+                                        </div>
+                                    </div>
+                                    <input type="range" id="aOutputSlider" min="0.1" max="25" step="0.1" value="5" class="dial-slider">
+                                </div>
+                                <div class="dial-value-display small">
+                                    <span id="aOutputValue">5.0</span>
+                                    <span class="unit">mA</span>
+                                </div>
+                            </div>
+
+                            <div class="dial-container">
+                                <label class="dial-label">V OUTPUT (mA)</label>
+                                <div class="dial-wrapper small">
+                                    <div class="dial small" id="vOutputDial">
+                                        <div class="dial-knob">
+                                            <div class="dial-indicator"></div>
+                                        </div>
+                                    </div>
+                                    <input type="range" id="vOutputSlider" min="0.1" max="25" step="0.1" value="5" class="dial-slider">
+                                </div>
+                                <div class="dial-value-display small">
+                                    <span id="vOutputValue">5.0</span>
+                                    <span class="unit">mA</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sensitivity Controls -->
+                        <div class="control-row dual-control">
+                            <div class="dial-container">
+                                <label class="dial-label">A SENSITIVITY (mV)</label>
+                                <div class="dial-wrapper small">
+                                    <div class="dial small" id="aSensDial">
+                                        <div class="dial-knob">
+                                            <div class="dial-indicator"></div>
+                                        </div>
+                                    </div>
+                                    <input type="range" id="aSensSlider" min="0.5" max="20" step="0.1" value="2" class="dial-slider">
+                                </div>
+                                <div class="dial-value-display small">
+                                    <span id="aSensValue">2.0</span>
+                                    <span class="unit">mV</span>
+                                </div>
+                            </div>
+
+                            <div class="dial-container">
+                                <label class="dial-label">V SENSITIVITY (mV)</label>
+                                <div class="dial-wrapper small">
+                                    <div class="dial small" id="vSensDial">
+                                        <div class="dial-knob">
+                                            <div class="dial-indicator"></div>
+                                        </div>
+                                    </div>
+                                    <input type="range" id="vSensSlider" min="0.5" max="20" step="0.1" value="2" class="dial-slider">
+                                </div>
+                                <div class="dial-value-display small">
+                                    <span id="vSensValue">2.0</span>
+                                    <span class="unit">mV</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- AV Delay -->
+                        <div class="control-row">
+                            <div class="dial-container av-delay">
+                                <label class="dial-label">AV DELAY (ms)</label>
+                                <div class="dial-wrapper small">
+                                    <div class="dial small" id="avDelayDial">
+                                        <div class="dial-knob">
+                                            <div class="dial-indicator"></div>
+                                        </div>
+                                    </div>
+                                    <input type="range" id="avDelaySlider" min="50" max="300" step="10" value="150" class="dial-slider">
+                                </div>
+                                <div class="dial-value-display small">
+                                    <span id="avDelayValue">150</span>
+                                    <span class="unit">ms</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Connection Ports -->
+                    <div class="connection-ports">
+                        <div class="port atrial-port">
+                            <div class="port-ring"></div>
+                            <span>ATRIAL</span>
+                        </div>
+                        <div class="port ventricular-port">
+                            <div class="port-ring"></div>
+                            <span>VENTRICULAR</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scenario Control Panel -->
+            <div class="scenario-panel">
+                <h3>Patient Scenario</h3>
+
+                <div class="scenario-section">
+                    <label class="scenario-label">Underlying Rhythm</label>
+                    <select id="rhythmSelect" class="scenario-select">
+                        <option value="nsr">Normal Sinus Rhythm (70 bpm)</option>
+                        <option value="sinus_brady">Sinus Bradycardia (45 bpm)</option>
+                        <option value="first_degree">First Degree AV Block</option>
+                        <option value="mobitz1">Second Degree - Mobitz I (Wenckebach)</option>
+                        <option value="mobitz2">Second Degree - Mobitz II</option>
+                        <option value="complete_hb" selected>Complete Heart Block</option>
+                        <option value="afib_slow">Atrial Fibrillation (Slow)</option>
+                        <option value="asystole">Asystole</option>
+                    </select>
+                </div>
+
+                <div class="scenario-section">
+                    <label class="scenario-label">Intrinsic Rate (bpm)</label>
+                    <input type="range" id="intrinsicRateSlider" min="20" max="100" value="35">
+                    <span id="intrinsicRateValue">35</span>
+                </div>
+
+                <div class="scenario-section">
+                    <label class="scenario-label">Capture Threshold (mA)</label>
+                    <input type="range" id="captureThreshold" min="0.5" max="15" step="0.5" value="2">
+                    <span id="captureThresholdValue">2.0</span>
+                </div>
+
+                <div class="scenario-section">
+                    <label class="scenario-label">Pacing Complications</label>
+                    <div class="complication-checkboxes">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="failureToCapture">
+                            Failure to Capture
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="failureToSense">
+                            Failure to Sense (Undersensing)
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="oversensing">
+                            Oversensing
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="leadDisplacement">
+                            Lead Displacement
+                        </label>
+                    </div>
+                </div>
+
+                <div class="scenario-section">
+                    <label class="scenario-label">Patient Parameters</label>
+                    <div class="patient-params">
+                        <div class="param-row">
+                            <span>Systolic BP:</span>
+                            <input type="number" id="sysBP" value="120" min="60" max="200">
+                            <span>mmHg</span>
+                        </div>
+                        <div class="param-row">
+                            <span>Diastolic BP:</span>
+                            <input type="number" id="diaBP" value="80" min="30" max="120">
+                            <span>mmHg</span>
+                        </div>
+                    </div>
+                </div>
+
+                <button id="resetScenario" class="btn-reset">Reset to Defaults</button>
+            </div>
+        </div>
+
+        <!-- Educational Info Panel -->
+        <div class="education-panel">
+            <h3>Educational Information</h3>
+            <div class="info-tabs">
+                <button class="tab-btn active" data-tab="modes">Pacing Modes</button>
+                <button class="tab-btn" data-tab="troubleshooting">Troubleshooting</button>
+                <button class="tab-btn" data-tab="concepts">Key Concepts</button>
+            </div>
+
+            <div class="tab-content" id="modesTab">
+                <div class="info-card">
+                    <h4>NBG Pacemaker Code</h4>
+                    <p><strong>Position I:</strong> Chamber paced (A=Atrial, V=Ventricular, D=Dual)</p>
+                    <p><strong>Position II:</strong> Chamber sensed (A, V, D, O=None)</p>
+                    <p><strong>Position III:</strong> Response to sensing (I=Inhibited, T=Triggered, D=Dual)</p>
+                </div>
+                <div class="info-card">
+                    <h4>Common Modes</h4>
+                    <ul>
+                        <li><strong>VVI:</strong> Paces ventricle, senses ventricle, inhibited by sensed beat</li>
+                        <li><strong>AAI:</strong> Paces atrium, senses atrium, inhibited by sensed beat</li>
+                        <li><strong>DDD:</strong> Paces both, senses both, dual response</li>
+                        <li><strong>VOO/AOO:</strong> Asynchronous - no sensing, fixed rate</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="tab-content hidden" id="troubleshootingTab">
+                <div class="info-card">
+                    <h4>Failure to Capture</h4>
+                    <p>Pacing spike present but no myocardial response. Causes: lead displacement, increased threshold, low output, lead fracture.</p>
+                    <p><strong>Fix:</strong> Increase output, check lead position, check connections.</p>
+                </div>
+                <div class="info-card">
+                    <h4>Failure to Sense</h4>
+                    <p>Pacemaker doesn't detect intrinsic activity. Paces inappropriately.</p>
+                    <p><strong>Fix:</strong> Increase sensitivity (lower mV number), check lead position.</p>
+                </div>
+                <div class="info-card">
+                    <h4>Oversensing</h4>
+                    <p>Pacemaker detects non-cardiac signals. Inappropriate inhibition.</p>
+                    <p><strong>Fix:</strong> Decrease sensitivity (higher mV number), check for EMI.</p>
+                </div>
+            </div>
+
+            <div class="tab-content hidden" id="conceptsTab">
+                <div class="info-card">
+                    <h4>Capture Threshold</h4>
+                    <p>Minimum output (mA) required to depolarize the myocardium. Typically set output at 2-3x threshold for safety margin.</p>
+                </div>
+                <div class="info-card">
+                    <h4>Sensitivity</h4>
+                    <p>Ability to detect intrinsic cardiac activity. Lower mV = more sensitive. Higher mV = less sensitive.</p>
+                </div>
+                <div class="info-card">
+                    <h4>AV Delay</h4>
+                    <p>Time between atrial and ventricular pacing in DDD mode. Normal PR interval is 120-200ms.</p>
+                </div>
+            </div>
+        </div>
+
+        <footer class="sim-footer">
+            <p>Educational simulation only - Not for clinical use</p>
+            <p>Designed for ICU nursing and junior doctor training</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/pacing.js') }}"></script>
+</body>
+</html>
