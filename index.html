@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CRRT Prescription Trainer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { mono: ['JetBrains Mono', 'Fira Code', 'monospace'] }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+    body { font-family: 'Inter', system-ui, sans-serif; background: #0f172a; color: #e2e8f0; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+    input[type="range"] { -webkit-appearance: none; background: transparent; }
+    input[type="range"]::-webkit-slider-track { height: 6px; border-radius: 3px; background: #334155; }
+    input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #3b82f6; margin-top: -6px; cursor: pointer; }
+    input[type="range"]::-moz-range-track { height: 6px; border-radius: 3px; background: #334155; border: none; }
+    input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: #3b82f6; border: none; cursor: pointer; }
+    select, input[type="number"] { background: #1e293b; border: 1px solid #334155; color: #e2e8f0; }
+    select:focus, input[type="number"]:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.3); }
+    .panel { background: #1e293b; border: 1px solid #334155; border-radius: 0.75rem; }
+    .panel-header { background: #0f172a; border-bottom: 1px solid #334155; padding: 0.75rem 1rem; border-radius: 0.75rem 0.75rem 0 0; }
+    .status-normal { color: #4ade80; }
+    .status-low, .status-high { color: #fbbf24; }
+    .status-critical-low, .status-critical-high { color: #ef4444; font-weight: 600; }
+    .tooltip-container { position: relative; }
+    .tooltip-content { display: none; position: absolute; z-index: 50; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 8px;
+      background: #0f172a; border: 1px solid #475569; border-radius: 8px; padding: 12px; min-width: 280px; font-size: 0.75rem; line-height: 1.4; }
+    .tooltip-container:hover .tooltip-content { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .fade-in { animation: fadeIn 0.3s ease-out; }
+    .scrollbar-thin::-webkit-scrollbar { width: 6px; }
+    .scrollbar-thin::-webkit-scrollbar-track { background: #1e293b; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+  </style>
+  <script src="data.js"></script>
+  <script src="simulation.js"></script>
+</head>
+<body class="min-h-screen">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useCallback, useMemo } = React;
+
+    // ==================== HELPER COMPONENTS ====================
+
+    function SliderInput({ label, value, onChange, min, max, step, unit, warn }) {
+      return (
+        <div className="mb-3">
+          <div className="flex justify-between items-center mb-1">
+            <label className="text-xs text-slate-400 font-medium">{label}</label>
+            <span className={`mono text-sm font-semibold ${warn ? 'text-amber-400' : 'text-blue-400'}`}>
+              {value}{unit && <span className="text-slate-500 text-xs ml-1">{unit}</span>}
+            </span>
+          </div>
+          <input type="range" className="w-full" value={value} onChange={e => onChange(Number(e.target.value))}
+            min={min} max={max} step={step || 1} />
+        </div>
+      );
+    }
+
+    function NumberInput({ label, value, onChange, min, max, step, unit, className }) {
+      return (
+        <div className={`flex items-center gap-2 ${className || ''}`}>
+          <label className="text-xs text-slate-400 whitespace-nowrap min-w-0">{label}</label>
+          <input type="number" className="w-20 px-2 py-1 rounded text-sm mono text-right"
+            value={value} onChange={e => onChange(Number(e.target.value))}
+            min={min} max={max} step={step || 0.1} />
+          {unit && <span className="text-xs text-slate-500">{unit}</span>}
+        </div>
+      );
+    }
+
+    function SolutionTooltip({ name }) {
+      const sol = SOLUTIONS[name];
+      if (!sol) return null;
+      return (
+        <div className="tooltip-content text-slate-300">
+          <div className="font-semibold text-blue-400 mb-2">{name}</div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 mono text-xs">
+            <span>Na⁺</span><span>{sol.Na}</span>
+            <span>K⁺</span><span>{sol.K}</span>
+            <span>Ca²⁺</span><span>{sol.Ca}</span>
+            <span>Mg²⁺</span><span>{sol.Mg}</span>
+            <span>Cl⁻</span><span>{sol.Cl}</span>
+            <span>HCO₃⁻</span><span>{sol.HCO3}</span>
+            <span>Lactate</span><span>{sol.Lactate}</span>
+            <span>PO₄³⁻</span><span>{sol.PO4}</span>
+          </div>
+          <div className="text-[10px] text-slate-500 mt-2">All values in mmol/L</div>
+        </div>
+      );
+    }
+
+    // ==================== PANEL 1: PATIENT SETUP ====================
+
+    function PatientPanel({ patient, setPatient }) {
+      const [selectedScenario, setSelectedScenario] = useState('septic_aki');
+
+      const loadScenario = useCallback((key) => {
+        setSelectedScenario(key);
+        if (key === 'custom') return;
+        const sc = CLINICAL_SCENARIOS[key];
+        if (sc) setPatient({ ...sc.patient });
+      }, [setPatient]);
+
+      const updateBlood = useCallback((key, val) => {
+        setPatient(p => ({ ...p, bloods: { ...p.bloods, [key]: Number(val) } }));
+      }, [setPatient]);
+
+      const bloodRows = [
+        { key: 'urea', label: 'Urea', unit: 'mmol/L', step: 1 },
+        { key: 'creatinine', label: 'Creatinine', unit: 'µmol/L', step: 10 },
+        { key: 'sodium', label: 'Sodium', unit: 'mmol/L', step: 1 },
+        { key: 'potassium', label: 'Potassium', unit: 'mmol/L', step: 0.1 },
+        { key: 'chloride', label: 'Chloride', unit: 'mmol/L', step: 1 },
+        { key: 'bicarbonate', label: 'Bicarbonate', unit: 'mmol/L', step: 1 },
+        { key: 'pH', label: 'pH', unit: '', step: 0.01 },
+        { key: 'pCO2', label: 'pCO₂', unit: 'mmHg', step: 1 },
+        { key: 'ionisedCalcium', label: 'Ionised Ca²⁺', unit: 'mmol/L', step: 0.05 },
+        { key: 'totalCalcium', label: 'Total Ca²⁺', unit: 'mmol/L', step: 0.05 },
+        { key: 'phosphate', label: 'Phosphate', unit: 'mmol/L', step: 0.1 },
+        { key: 'magnesium', label: 'Magnesium', unit: 'mmol/L', step: 0.1 },
+        { key: 'lactate', label: 'Lactate', unit: 'mmol/L', step: 0.1 },
+        { key: 'haemoglobin', label: 'Haemoglobin', unit: 'g/L', step: 1 },
+      ];
+
+      return (
+        <div className="panel flex flex-col h-full">
+          <div className="panel-header">
+            <h2 className="text-sm font-semibold text-slate-200 tracking-wide uppercase">Patient Setup</h2>
+          </div>
+          <div className="p-4 flex-1 overflow-y-auto scrollbar-thin space-y-4">
+            {/* Scenario */}
+            <div>
+              <label className="text-xs text-slate-400 font-medium block mb-1">Clinical Scenario</label>
+              <select className="w-full px-3 py-2 rounded-lg text-sm" value={selectedScenario}
+                onChange={e => loadScenario(e.target.value)}>
+                {Object.entries(CLINICAL_SCENARIOS).map(([k, v]) =>
+                  <option key={k} value={k}>{v.name}</option>
+                )}
+                <option value="custom">Custom (manual entry)</option>
+              </select>
+              {selectedScenario !== 'custom' && CLINICAL_SCENARIOS[selectedScenario] && (
+                <p className="text-[11px] text-slate-500 mt-1">{CLINICAL_SCENARIOS[selectedScenario].description}</p>
+              )}
+            </div>
+
+            {/* Demographics */}
+            <div className="space-y-2">
+              <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Demographics</h3>
+              <div className="grid grid-cols-2 gap-2">
+                <NumberInput label="Weight" value={patient.weight} onChange={v => setPatient(p => ({...p, weight: v}))} min={30} max={200} step={1} unit="kg" />
+                <NumberInput label="Height" value={patient.height} onChange={v => setPatient(p => ({...p, height: v}))} min={120} max={220} step={1} unit="cm" />
+                <NumberInput label="Age" value={patient.age} onChange={v => setPatient(p => ({...p, age: v}))} min={18} max={100} step={1} unit="yr" />
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-slate-400">Sex</label>
+                  <select className="px-2 py-1 rounded text-sm" value={patient.sex}
+                    onChange={e => setPatient(p => ({...p, sex: e.target.value}))}>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Clinical */}
+            <div className="space-y-2">
+              <SliderInput label="Residual Urine Output" value={patient.residualUO}
+                onChange={v => setPatient(p => ({...p, residualUO: v}))} min={0} max={100} unit="mL/hr" />
+              <SliderInput label="Haematocrit" value={(patient.haematocrit * 100).toFixed(0)}
+                onChange={v => setPatient(p => ({...p, haematocrit: v / 100}))} min={15} max={55} unit="%" />
+              <div>
+                <label className="text-xs text-slate-400 font-medium block mb-1">Liver Function</label>
+                <div className="flex gap-2">
+                  {['normal', 'impaired', 'severe'].map(lf => (
+                    <button key={lf} onClick={() => setPatient(p => ({...p, liverFunction: lf}))}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                        patient.liverFunction === lf
+                          ? lf === 'normal' ? 'bg-green-900/50 text-green-400 ring-1 ring-green-500/50'
+                            : lf === 'impaired' ? 'bg-amber-900/50 text-amber-400 ring-1 ring-amber-500/50'
+                            : 'bg-red-900/50 text-red-400 ring-1 ring-red-500/50'
+                          : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                      }`}>
+                      {lf.charAt(0).toUpperCase() + lf.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Baseline Bloods */}
+            <div>
+              <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Baseline Bloods</h3>
+              <div className="space-y-1.5">
+                {bloodRows.map(({ key, label, unit, step }) => {
+                  const val = patient.bloods[key];
+                  const status = getValueStatus(key, val);
+                  return (
+                    <div key={key} className="flex items-center gap-2">
+                      <span className="text-[11px] text-slate-400 w-24 flex-shrink-0">{label}</span>
+                      <input type="number" className={`w-20 px-2 py-0.5 rounded text-xs mono text-right ${
+                        status.includes('critical') ? 'border-red-500/50 text-red-400' :
+                        status !== 'normal' ? 'border-amber-500/50 text-amber-400' : ''
+                      }`}
+                        value={val} onChange={e => updateBlood(key, e.target.value)} step={step} />
+                      <span className="text-[10px] text-slate-600 w-14">{unit}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ==================== PANEL 2: PRESCRIPTION ====================
+
+    function PrescriptionPanel({ rx, setRx, patient, calculatedValues }) {
+      const updateRx = useCallback((key, val) => {
+        setRx(p => ({ ...p, [key]: val }));
+      }, [setRx]);
+
+      const updateAdditive = useCallback((key, val) => {
+        setRx(p => ({ ...p, additives: { ...p.additives, [key]: Number(val) } }));
+      }, [setRx]);
+
+      const isCitrate = rx.anticoagulation === 'citrate';
+      const isCVVH = rx.modality === 'CVVH';
+      const isCVVHD = rx.modality === 'CVVHD';
+
+      // Auto-calculate prismocitrate flow
+      const prismocitrateFlow = isCitrate
+        ? Math.max(0, (rx.citrateDose * rx.bloodFlowRate * 60) / (18 - rx.citrateDose))
+        : 0;
+
+      // Calculate values for display
+      const Qb_hr = rx.bloodFlowRate * 60;
+      const Qp_hr = Qb_hr * (1 - patient.haematocrit);
+      const totalPreFilter = (rx.replacementFluidPosition === 'pre' ? rx.replacementFluidRate :
+        rx.replacementFluidPosition === 'both' ? rx.replacementFluidRate / 2 : 0) + prismocitrateFlow;
+
+      let Qeff = rx.netUltrafiltrationRate + (isCitrate ? prismocitrateFlow : 0);
+      if (!isCVVHD) Qeff += rx.replacementFluidRate;
+      if (!isCVVH) Qeff += rx.dialysateRate;
+
+      const Qpost = rx.replacementFluidPosition === 'pre' ? 0 :
+        rx.replacementFluidPosition === 'both' ? rx.replacementFluidRate / 2 : rx.replacementFluidRate;
+      const FF = (Qpost + rx.netUltrafiltrationRate) / (Qp_hr + totalPreFilter);
+
+      const preDilCorr = totalPreFilter === 0 ? 1 : Qb_hr / (Qb_hr + totalPreFilter);
+      const crrtDose = Qeff / patient.weight;
+
+      // Post-filter iCa (citrate)
+      let postFilterICa = null;
+      if (isCitrate) {
+        const citrateInfused = prismocitrateFlow * 18 / 1000;
+        postFilterICa = ((Qp_hr / 1000) * patient.bloods.ionisedCalcium - citrateInfused * 0.59) /
+                        ((Qp_hr + prismocitrateFlow) / 1000);
+        if (postFilterICa < 0) postFilterICa = 0;
+      }
+
+      const ffColor = FF > 0.30 ? 'text-red-400' : FF > 0.25 ? 'text-amber-400' : 'text-green-400';
+      const doseColor = crrtDose < 20 ? 'text-amber-400' : crrtDose > 35 ? 'text-amber-400' : 'text-green-400';
+
+      // Solution options
+      const solutionOptions = Object.keys(SOLUTIONS).filter(k => k !== 'Prism0cal B22');
+      const dialysateOptions = Object.keys(SOLUTIONS);
+
+      return (
+        <div className="panel flex flex-col h-full">
+          <div className="panel-header">
+            <h2 className="text-sm font-semibold text-slate-200 tracking-wide uppercase">Prescription</h2>
+          </div>
+          <div className="p-4 flex-1 overflow-y-auto scrollbar-thin space-y-4">
+            {/* Modality */}
+            <div>
+              <label className="text-xs text-slate-400 font-medium block mb-1">Modality</label>
+              <div className="flex gap-2">
+                {['CVVH', 'CVVHD', 'CVVHDF'].map(m => (
+                  <button key={m} onClick={() => updateRx('modality', m)}
+                    className={`flex-1 py-2 rounded-lg text-xs font-semibold tracking-wide transition-colors ${
+                      rx.modality === m ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                    }`}>{m}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Anticoagulation */}
+            <div>
+              <label className="text-xs text-slate-400 font-medium block mb-1">Anticoagulation</label>
+              <div className="flex gap-2">
+                {['heparin', 'citrate', 'none'].map(a => (
+                  <button key={a} onClick={() => {
+                    updateRx('anticoagulation', a);
+                    if (a === 'citrate') {
+                      updateRx('dialysateSolution', 'Prism0cal B22');
+                    }
+                  }}
+                    className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors ${
+                      rx.anticoagulation === a ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                    }`}>{a.charAt(0).toUpperCase() + a.slice(1)}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Blood Flow */}
+            <SliderInput label="Blood Flow Rate (Qb)" value={rx.bloodFlowRate}
+              onChange={v => updateRx('bloodFlowRate', v)} min={100} max={300} step={10} unit="mL/min" />
+
+            {/* Heparin settings */}
+            {rx.anticoagulation === 'heparin' && (
+              <SliderInput label="Heparin Rate" value={rx.heparinRate}
+                onChange={v => updateRx('heparinRate', v)} min={0} max={2000} step={100} unit="units/hr" />
+            )}
+
+            {/* Citrate settings */}
+            {isCitrate && (
+              <div className="p-3 rounded-lg bg-amber-900/20 border border-amber-700/30 space-y-3">
+                <h3 className="text-xs font-semibold text-amber-400 uppercase tracking-wider">Citrate Settings</h3>
+                <SliderInput label="Citrate Dose Target" value={rx.citrateDose}
+                  onChange={v => updateRx('citrateDose', v)} min={2.0} max={5.0} step={0.1} unit="mmol/L blood"
+                  warn={rx.citrateDose > 5} />
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-400">Prismocitrate 18/0 Flow</span>
+                  <span className="mono text-amber-400 font-semibold">{Math.round(prismocitrateFlow)} mL/hr</span>
+                </div>
+                <SliderInput label="Ca²⁺ Replacement (CaCl₂)" value={rx.calciumReplacementRate}
+                  onChange={v => updateRx('calciumReplacementRate', v)} min={0} max={5.0} step={0.1} unit="mmol/hr" />
+                <div className="text-[10px] text-amber-600">Dialysate auto-set to Prism0cal B22 (Ca-free)</div>
+              </div>
+            )}
+
+            {/* Replacement Fluid */}
+            {!isCVVHD && (
+              <>
+                <SliderInput label="Replacement Fluid Rate" value={rx.replacementFluidRate}
+                  onChange={v => updateRx('replacementFluidRate', v)} min={0} max={3000} step={100} unit="mL/hr" />
+                <div>
+                  <label className="text-xs text-slate-400 font-medium block mb-1">Position</label>
+                  <div className="flex gap-2">
+                    {['pre', 'post', 'both'].map(p => (
+                      <button key={p} onClick={() => updateRx('replacementFluidPosition', p)}
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                          rx.replacementFluidPosition === p ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                        }`}>{p === 'both' ? '50:50' : p.charAt(0).toUpperCase() + p.slice(1)}</button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Dialysate */}
+            {!isCVVH && (
+              <SliderInput label="Dialysate Rate (Qd)" value={rx.dialysateRate}
+                onChange={v => updateRx('dialysateRate', v)} min={0} max={3000} step={100} unit="mL/hr" />
+            )}
+
+            {/* Net UF */}
+            <SliderInput label="Net Ultrafiltration Rate" value={rx.netUltrafiltrationRate}
+              onChange={v => updateRx('netUltrafiltrationRate', v)} min={0} max={500} step={10} unit="mL/hr"
+              warn={rx.netUltrafiltrationRate > 200} />
+
+            {/* Solution Selection */}
+            <div className="space-y-2">
+              <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Solutions</h3>
+              {!isCVVHD && (
+                <div className="tooltip-container">
+                  <label className="text-xs text-slate-400 block mb-1">Replacement Fluid</label>
+                  <select className="w-full px-3 py-2 rounded-lg text-sm" value={rx.replacementFluid}
+                    onChange={e => updateRx('replacementFluid', e.target.value)}>
+                    {solutionOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                  <SolutionTooltip name={rx.replacementFluid} />
+                </div>
+              )}
+              {!isCVVH && (
+                <div className="tooltip-container">
+                  <label className="text-xs text-slate-400 block mb-1">Dialysate</label>
+                  <select className="w-full px-3 py-2 rounded-lg text-sm" value={rx.dialysateSolution}
+                    onChange={e => updateRx('dialysateSolution', e.target.value)}
+                    disabled={isCitrate}>
+                    {dialysateOptions.map(s => <option key={s} value={s}>{SOLUTIONS[s].label}</option>)}
+                  </select>
+                  <SolutionTooltip name={rx.dialysateSolution} />
+                </div>
+              )}
+            </div>
+
+            {/* Additives */}
+            <div className="space-y-2">
+              <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Additives to Replacement Fluid</h3>
+              <NumberInput label="K⁺" value={rx.additives.potassium} onChange={v => updateAdditive('potassium', Math.min(4, Math.max(0, v)))} min={0} max={4} step={0.5} unit="mmol/L" />
+              <NumberInput label="PO₄³⁻" value={rx.additives.phosphate} onChange={v => updateAdditive('phosphate', Math.min(1.2, Math.max(0, v)))} min={0} max={1.2} step={0.1} unit="mmol/L" />
+              <NumberInput label="Mg²⁺" value={rx.additives.magnesium} onChange={v => updateAdditive('magnesium', Math.min(2, Math.max(0, v)))} min={0} max={2} step={0.1} unit="mmol/L" />
+            </div>
+
+            {/* Calculated Values */}
+            <div className="p-3 rounded-lg bg-slate-800/80 border border-slate-700 space-y-2">
+              <h3 className="text-xs font-semibold text-blue-400 uppercase tracking-wider">Calculated Values</h3>
+              <div className="grid grid-cols-1 gap-1.5 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Effluent Rate</span>
+                  <span className="mono text-slate-200">{Math.round(Qeff)} mL/hr</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">CRRT Dose</span>
+                  <span className={`mono font-semibold ${doseColor}`}>{crrtDose.toFixed(1)} mL/kg/hr</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Filtration Fraction</span>
+                  <span className={`mono font-semibold ${ffColor}`}>{(FF * 100).toFixed(1)}%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Pre-dilution Correction</span>
+                  <span className="mono text-slate-200">{preDilCorr.toFixed(3)}</span>
+                </div>
+                {isCitrate && postFilterICa !== null && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Post-filter iCa</span>
+                    <span className={`mono font-semibold ${postFilterICa > 0.4 ? 'text-amber-400' : postFilterICa < 0.15 ? 'text-red-400' : 'text-green-400'}`}>
+                      {postFilterICa.toFixed(2)} mmol/L
+                    </span>
+                  </div>
+                )}
+                {isCitrate && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Prismocitrate Flow</span>
+                    <span className="mono text-amber-400">{Math.round(prismocitrateFlow)} mL/hr</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ==================== PANEL 3: RESULTS ====================
+
+    function ResultsPanel({ results, onRun, isRunning }) {
+      const [showPearls, setShowPearls] = useState(true);
+
+      const paramLabels = {
+        urea: { label: 'Urea', unit: 'mmol/L' },
+        creatinine: { label: 'Creatinine', unit: 'µmol/L' },
+        sodium: { label: 'Sodium', unit: 'mmol/L' },
+        potassium: { label: 'Potassium', unit: 'mmol/L' },
+        chloride: { label: 'Chloride', unit: 'mmol/L' },
+        bicarbonate: { label: 'Bicarbonate', unit: 'mmol/L' },
+        pH: { label: 'pH', unit: '' },
+        ionisedCalcium: { label: 'Ionised Ca²⁺', unit: 'mmol/L' },
+        totalCalcium: { label: 'Total Ca²⁺', unit: 'mmol/L' },
+        phosphate: { label: 'Phosphate', unit: 'mmol/L' },
+        magnesium: { label: 'Magnesium', unit: 'mmol/L' },
+        lactate: { label: 'Lactate', unit: 'mmol/L' },
+        haemoglobin: { label: 'Haemoglobin', unit: 'g/L' },
+        totalIonisedCaRatio: { label: 'Total:Ionised Ca', unit: 'ratio' }
+      };
+
+      const paramOrder = ['urea', 'creatinine', 'sodium', 'potassium', 'chloride', 'bicarbonate', 'pH',
+        'ionisedCalcium', 'totalCalcium', 'totalIonisedCaRatio', 'phosphate', 'magnesium', 'lactate', 'haemoglobin'];
+
+      const getRefRange = (key) => {
+        const r = REFERENCE_RANGES[key];
+        if (!r) return '-';
+        return `${r.normLow}–${r.normHigh}`;
+      };
+
+      const getCellClass = (key, value) => {
+        const status = getValueStatus(key, value);
+        return `status-${status}`;
+      };
+
+      return (
+        <div className="panel flex flex-col h-full">
+          <div className="panel-header flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-slate-200 tracking-wide uppercase">Results</h2>
+            <button onClick={onRun}
+              className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg transition-colors flex items-center gap-2">
+              {isRunning ? (
+                <><svg className="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Running...</>
+              ) : 'Run Simulation'}
+            </button>
+          </div>
+          <div className="p-4 flex-1 overflow-y-auto scrollbar-thin">
+            {!results ? (
+              <div className="flex flex-col items-center justify-center h-full text-slate-500">
+                <svg className="w-16 h-16 mb-4 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                <p className="text-sm">Configure your prescription and click <span className="text-blue-400 font-semibold">Run Simulation</span></p>
+                <p className="text-xs mt-1">Results will appear here at 0h, 12h, and 24h</p>
+              </div>
+            ) : (
+              <div className="fade-in space-y-4">
+                {/* Results Table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-700">
+                        <th className="text-left py-2 px-2 text-slate-400 font-medium">Parameter</th>
+                        <th className="text-right py-2 px-2 text-slate-400 font-medium">Baseline</th>
+                        <th className="text-right py-2 px-2 text-slate-400 font-medium">12h</th>
+                        <th className="text-right py-2 px-2 text-slate-400 font-medium">24h</th>
+                        <th className="text-right py-2 px-2 text-slate-500 font-medium">Reference</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paramOrder.map(key => {
+                        const info = paramLabels[key];
+                        const v0 = results.snapshots[0][key];
+                        const v12 = results.snapshots[12][key];
+                        const v24 = results.snapshots[24][key];
+                        return (
+                          <tr key={key} className="border-b border-slate-800 hover:bg-slate-800/50">
+                            <td className="py-1.5 px-2">
+                              <span className="text-slate-300">{info.label}</span>
+                              {info.unit && <span className="text-slate-600 ml-1 text-[10px]">{info.unit}</span>}
+                            </td>
+                            <td className={`py-1.5 px-2 text-right mono ${getCellClass(key, v0)}`}>
+                              {formatValue(key, v0)}
+                            </td>
+                            <td className={`py-1.5 px-2 text-right mono ${getCellClass(key, v12)}`}>
+                              {formatValue(key, v12)}
+                            </td>
+                            <td className={`py-1.5 px-2 text-right mono font-semibold ${getCellClass(key, v24)}`}>
+                              {formatValue(key, v24)}
+                            </td>
+                            <td className="py-1.5 px-2 text-right mono text-slate-600 text-[10px]">
+                              {getRefRange(key)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Calculated Summary */}
+                <div className="p-3 rounded-lg bg-slate-800/60 border border-slate-700">
+                  <h3 className="text-xs font-semibold text-blue-400 mb-2">Simulation Parameters</h3>
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-[11px]">
+                    <div className="flex justify-between"><span className="text-slate-400">TBW</span><span className="mono">{results.calculatedValues.TBW.toFixed(1)} L</span></div>
+                    <div className="flex justify-between"><span className="text-slate-400">Effluent Rate</span><span className="mono">{Math.round(results.calculatedValues.Qeff)} mL/hr</span></div>
+                    <div className="flex justify-between"><span className="text-slate-400">CRRT Dose</span><span className="mono">{results.calculatedValues.crrtDose.toFixed(1)} mL/kg/hr</span></div>
+                    <div className="flex justify-between"><span className="text-slate-400">FF</span><span className="mono">{(results.calculatedValues.filtrationFraction * 100).toFixed(1)}%</span></div>
+                  </div>
+                </div>
+
+                {/* Alerts */}
+                {results.alerts.length > 0 && (
+                  <div className="space-y-2">
+                    <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Alerts</h3>
+                    {results.alerts.map((alert, i) => (
+                      <div key={i} className={`p-2.5 rounded-lg text-xs ${
+                        alert.level === 'critical' ? 'bg-red-900/30 border border-red-700/40 text-red-300' :
+                        alert.level === 'warning' ? 'bg-amber-900/30 border border-amber-700/40 text-amber-300' :
+                        'bg-blue-900/30 border border-blue-700/40 text-blue-300'
+                      }`}>
+                        <span className="mr-1">{alert.level === 'critical' ? '\u{1F534}' : alert.level === 'warning' ? '\u26A0\uFE0F' : '\u2139\uFE0F'}</span>
+                        {alert.message}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Teaching Pearls */}
+                {results.teachingPearls.length > 0 && (
+                  <div>
+                    <button onClick={() => setShowPearls(!showPearls)}
+                      className="flex items-center gap-2 text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2 hover:text-white transition-colors">
+                      <svg className={`w-3 h-3 transition-transform ${showPearls ? 'rotate-90' : ''}`} fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd"/>
+                      </svg>
+                      Clinical Pearls ({results.teachingPearls.length})
+                    </button>
+                    {showPearls && (
+                      <div className="space-y-3 fade-in">
+                        {results.teachingPearls.map((pearl, i) => (
+                          <div key={i} className="p-3 rounded-lg bg-indigo-900/20 border border-indigo-700/30">
+                            <h4 className="text-xs font-semibold text-indigo-400 mb-1">{pearl.title}</h4>
+                            <p className="text-[11px] text-slate-400 leading-relaxed">{pearl.content}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ==================== ABOUT MODAL ====================
+
+    function AboutModal({ show, onClose }) {
+      if (!show) return null;
+      return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+          <div className="bg-slate-800 rounded-xl border border-slate-700 max-w-lg w-full mx-4 p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-slate-200 mb-3">About CRRT Prescription Trainer</h2>
+            <div className="text-sm text-slate-400 space-y-3">
+              <p>This is a <span className="text-amber-400 font-semibold">training and educational tool</span> for ICU nurses and doctors learning to prescribe Continuous Renal Replacement Therapy (CRRT).</p>
+              <p>The simulator uses deterministic compartment-model equations to model the physiological and metabolic consequences of CRRT prescriptions over 12 and 24 hours. It supports heparin anticoagulation and regional citrate anticoagulation (RCA).</p>
+              <div className="p-3 bg-red-900/20 border border-red-700/30 rounded-lg">
+                <p className="text-red-400 font-semibold text-xs">NOT FOR CLINICAL DECISION-MAKING</p>
+                <p className="text-xs text-red-300/80 mt-1">This tool is for educational purposes only. It uses simplified models and should not be used to guide real patient care. Always consult local protocols and experienced clinicians.</p>
+              </div>
+              <div>
+                <h3 className="text-xs font-semibold text-slate-300 mb-1">Key References</h3>
+                <ul className="text-[11px] text-slate-500 space-y-0.5">
+                  <li>KDIGO AKI Guidelines 2012 — dose 20–25 mL/kg/hr</li>
+                  <li>RENAL Trial (Bellomo et al, NEJM 2009)</li>
+                  <li>ATN Trial (Palevsky et al, NEJM 2008)</li>
+                  <li>Davenport & Tolwani (NDT Plus 2009) — citrate overview</li>
+                  <li>Kramer et al (Crit Care Med 2003) — citrate in liver failure</li>
+                </ul>
+              </div>
+            </div>
+            <button onClick={onClose} className="mt-4 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-sm rounded-lg transition-colors">Close</button>
+          </div>
+        </div>
+      );
+    }
+
+    // ==================== MAIN APP ====================
+
+    function App() {
+      const defaultPatient = { ...CLINICAL_SCENARIOS['septic_aki'].patient };
+      const [patient, setPatient] = useState(defaultPatient);
+      const [rx, setRx] = useState({ ...DEFAULT_PRESCRIPTION });
+      const [results, setResults] = useState(null);
+      const [isRunning, setIsRunning] = useState(false);
+      const [showAbout, setShowAbout] = useState(false);
+
+      const handleRun = useCallback(() => {
+        setIsRunning(true);
+        // Small timeout for visual feedback
+        setTimeout(() => {
+          const result = runSimulation(patient, rx);
+          setResults(result);
+          setIsRunning(false);
+        }, 300);
+      }, [patient, rx]);
+
+      return (
+        <div className="min-h-screen flex flex-col">
+          {/* Header */}
+          <header className="bg-slate-900 border-b border-slate-800 px-6 py-3 flex items-center justify-between flex-shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                </svg>
+              </div>
+              <div>
+                <h1 className="text-base font-bold text-slate-100 tracking-tight">CRRT Prescription Trainer</h1>
+                <p className="text-[10px] text-slate-500 tracking-wide uppercase">Continuous Renal Replacement Therapy Simulator</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] px-2 py-0.5 rounded bg-amber-900/50 text-amber-400 border border-amber-700/30 font-medium">EDUCATIONAL USE ONLY</span>
+              <button onClick={() => setShowAbout(true)} className="text-xs text-slate-500 hover:text-slate-300 transition-colors">About</button>
+            </div>
+          </header>
+
+          {/* Main Content */}
+          <main className="flex-1 grid grid-cols-12 gap-4 p-4 min-h-0" style={{ height: 'calc(100vh - 56px)' }}>
+            {/* Panel 1: Patient */}
+            <div className="col-span-3 min-h-0 overflow-hidden">
+              <PatientPanel patient={patient} setPatient={setPatient} />
+            </div>
+
+            {/* Panel 2: Prescription */}
+            <div className="col-span-4 min-h-0 overflow-hidden">
+              <PrescriptionPanel rx={rx} setRx={setRx} patient={patient} />
+            </div>
+
+            {/* Panel 3: Results */}
+            <div className="col-span-5 min-h-0 overflow-hidden">
+              <ResultsPanel results={results} onRun={handleRun} isRunning={isRunning} />
+            </div>
+          </main>
+
+          <AboutModal show={showAbout} onClose={() => setShowAbout(false)} />
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
